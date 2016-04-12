@@ -1,0 +1,258 @@
+<?php
+
+class LoginController extends Controller
+{
+
+    public $defaultAction = 'login';
+
+
+    private function getSetApplicationUser($user, $pass){
+        $d = User::model()->findAll(array("select" => "id", "condition" => "username =  $user", "order" => "id"));
+        if (!$d) {
+            $b = new User;
+            $b->username = $user;
+            $b->password = UserModule::encrypting($pass);
+            $hrdata = new HrdService;
+            $model1 = $hrdata->getHrUser($user);
+            $b->email = $model1[0]['Email'];
+            $b->activkey = UserModule::encrypting(microtime() . $pass);
+            $b->create_at = date('Y-m-d H:i:s');
+            $b->lastvisit_at = '1';
+            $b->superuser = 0;
+            $b->status = 1;
+            if($b->save()) {
+                $getuid = User::model()->findAll(array("condition" => "username = $user", "order" => "id"));
+                $c = new Profile;
+                $c->user_id = $getuid[0][id];
+                $c->lastname = $user;
+                $c->firstname = $user;
+                if($c->save()) return true;
+            }
+        } else {
+            return true;
+        }
+    }
+
+    private function checkSSO(){
+
+    }
+
+    /**
+     * Displays the login page
+     */
+    public function actionLogin()
+    {
+		// The new Approach
+        // Check Session
+
+        if(!$_GET['multipass']) {
+            header("Location: http://sso.brac.net/auth/isoap/login/session?site=http://192.168.3.252/flow/trunk/webapp");
+        }
+
+        // Get MultiPass
+        $multipass = Yii::app()->request->getParam('multipass');
+
+
+        // Decode Multipass
+        if(isset($multipass) && !empty($multipass)) {
+            $key = Yii::app()->params['sso']['key'];
+            $url = base64_decode($multipass);
+            $url_decode = $this->decrypt_data($url,$key,$key);
+        }
+
+        // If user session exists
+        if( strcmp(htmlentities($url_decode, ENT_QUOTES, "UTF-8"), "sso.my8r4c.l1234session:false") ){
+
+
+
+            $parse_url = explode("|",$url_decode);
+            $username = explode(":",$parse_url[0]); // username:riad
+            $password = explode(":",$parse_url[1]); // password:123456
+            //$auth = explode(":",$parse_url[3]);    // authorization:true
+
+
+            $model=new UserLogin;
+
+            if( !empty($username[1]) && !empty($password[1]) ) {
+                $model->username = $username[1];
+                $model->password = $password[1];
+
+
+                if($model->validate()) {
+                    $this->lastViset();
+                    if (Yii::app()->user->returnUrl=='/index.php')
+                        $this->redirect(Yii::app()->controller->module->returnUrl);
+                    else
+                        $this->redirect(Yii::app()->user->returnUrl);
+                }
+            }
+            $this->render('/user/login',array('model'=>$model));
+
+        } else {
+
+            $parse_url = explode("|",$url_decode);
+            $username = explode(":",$parse_url[0]); // username:riad
+            $password = explode(":",$parse_url[1]); // password:123456
+            $auth = explode(":",$parse_url[3]);    // authorization:true
+
+            if($auth[1]=="true") {
+                if(getSetApplicationUser($username[1], $password[1])) {
+                    $identity=new UserIdentity($username[1],$password[1]);
+                    $identity->authenticate();
+                    if (Yii::app()->user->returnUrl=='/index.php') $this->redirect(Yii::app()->controller->module->returnUrl);
+                    else $this->redirect(Yii::app()->user->returnUrl);
+                }
+            }
+        }
+
+
+
+        Yii::app()->end();
+
+
+
+
+
+
+
+
+
+
+
+
+        if(!$_GET['multipass']) {
+			header("Location: http://sso.brac.net/auth/isoap/login/session?site=http://192.168.3.252/flow/trunk/webapp");
+		}
+
+			$multipass = $_GET['multipass'];
+
+            if(isset($multipass)) {
+
+            $key = 'sso.my8r4c.l1234';
+
+            //$url = urldecode($multipass);
+            $url = base64_decode($multipass, true);
+
+            $url_decode = $this->decrypt_data($url,$key,$key);
+            // die;
+
+
+			if((trim(htmlentities($url_decode, ENT_QUOTES, "UTF-8"))) == "sso.my8r4c.l1234session:false" ){
+				//echo "we get this right, but false";
+			//}
+
+            $parse_url = explode("|",$url_decode);
+
+
+			$username = explode(":",$parse_url[0]);
+            $password = explode(":",$parse_url[1]);
+
+            $auth = explode(":",$parse_url[3]);
+
+			//CVarDumper::dump($parse_url,10,true);
+			//die;
+
+            if($auth[1]=="true")
+            {
+                //$this->_model=User::model()->findby($_GET['id']);
+
+                $d = User::model()->findAll(array("select"=>"id", "condition"=>"username =  $username[1]","order"=>"id"));
+
+                if(!$d)
+                {
+
+                    $b=new User;
+                    $b->username = $username[1];
+                    $b->password=UserModule::encrypting($password[1]);
+                    $hrdata = new HrdService;
+                    $model1 = $hrdata->getHrUser($username[1]);
+                    $b->email = $model1[0]['Email'];
+                    $b->activkey=UserModule::encrypting(microtime().$password[1]);
+                    $b->create_at=date('Y-m-d H:i:s');
+                    $b->lastvisit_at='1';
+                    $b->superuser=0;
+                    $b->status=1;
+                    $b->save();
+
+                    $getuid = User::model()->findAll(array( "condition"=>"username = $username[1]","order"=>"id"));
+//CVarDumper::dump($getuid, 10, true);
+                    $c=new Profile;
+                    $c->user_id = $getuid[0][id];
+                    $c->lastname = $username[1];
+                    $c->firstname = $username[1];
+                    $c->save();
+                }
+
+            }
+				$_POST['UserLogin']['username'] = $username[1];
+				$_POST['UserLogin']['password'] = $password[1];
+			}
+        }
+//	die;
+
+
+
+
+        /*Start Code*/
+
+        //$model = new RegistrationForm;
+        //$profile=new Profile;
+
+
+        /* End Code */
+
+        if (Yii::app()->user->isGuest) {
+            $model=new UserLogin;
+            // collect user input data
+            if(isset($_POST['UserLogin']))
+            {
+                $model->attributes=$_POST['UserLogin'];
+                // validate user input and redirect to previous page if valid
+                if($model->validate()) {
+
+                    $this->lastViset();
+                    if (Yii::app()->user->returnUrl=='/index.php')
+                        $this->redirect(Yii::app()->controller->module->returnUrl);
+                    else
+                        $this->redirect(Yii::app()->user->returnUrl);
+                }
+            }
+            // display the login form
+            $this->render('/user/login',array('model'=>$model));
+        } else
+            $this->redirect(Yii::app()->controller->module->returnUrl);
+    }
+
+    private function lastViset() {
+        $lastVisit = User::model()->notsafe()->findByPk(Yii::app()->user->id);
+        $lastVisit->lastvisit = time();
+        $lastVisit->save();
+    }
+
+
+    public function decrypt_data($data, $iv, $key) {
+        $cypher = mcrypt_module_open(MCRYPT_RIJNDAEL_128, '', MCRYPT_MODE_CBC, '');
+
+        if (is_null($iv)) {
+            $ivlen = mcrypt_enc_get_iv_size($cypher);
+            $iv = substr($data, 0, $ivlen);
+            $data = substr($data, $ivlen);
+        }
+
+        // initialize encryption handle
+        if (mcrypt_generic_init($cypher, $key, $iv) != -1) {
+            // decrypt
+            $decrypted = mdecrypt_generic($cypher, $data);
+
+            // clean up
+            mcrypt_generic_deinit($cypher);
+            mcrypt_module_close($cypher);
+
+            return $decrypted;
+        }
+
+        return false;
+    }
+
+
+}
